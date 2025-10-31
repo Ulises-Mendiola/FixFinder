@@ -21,8 +21,13 @@ const serviceRequestSchema = new mongoose.Schema({
   },
   scheduledAt: { type: Date, required: true },
   contactName: { type: String, required: true },
-  contactPhone: { type: String, required: true },
+  contactPhone: { type: String },
   notes: { type: String },
+  acceptedOffer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ServiceOffer',
+  },
+  completedAt: { type: Date },
 }, { timestamps: true })
 
 module.exports = mongoose.model('ServiceRequest', serviceRequestSchema)

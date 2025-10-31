@@ -23,15 +23,32 @@ exports.register = async (req, res) => {
       return res.status(400).json({ message: 'El correo ya está registrado' })
     }
 
-    const user = await User.create({
+    await User.create({
       email,
       password,
       role: role === 'technician' ? 'technician' : 'client',
       profile,
-      technicianProfile: role === 'technician' ? {} : undefined,
+      clientProfile: { addresses: [], favorites: [] },
+      technicianProfile: role === 'technician'
+        ? {
+          specialties: [],
+          availability: [],
+          portfolio: [],
+          skills: [],
+          serviceAreas: [],
+          reviews: [],
+        }
+        : undefined,
     })
 
-    res.status(201).json(buildAuthResponse(user))
+    const hydrated = await User.findOne({ email })
+      .populate('clientProfile.favorites', 'profile technicianProfile.rating')
+      .populate({
+        path: 'serviceHistory',
+        select: 'title status category scheduledAt technician',
+        populate: { path: 'technician', select: 'profile' },
+      })
+    res.status(201).json(buildAuthResponse(hydrated))
   } catch (error) {
     console.error('Register error', error)
     res.status(500).json({ message: 'No se pudo registrar al usuario' })
@@ -49,7 +66,14 @@ exports.login = async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ message: 'Credenciales inválidas' })
     }
-    res.json(buildAuthResponse(user))
+    const hydrated = await User.findById(user.id)
+      .populate('clientProfile.favorites', 'profile technicianProfile.rating')
+      .populate({
+        path: 'serviceHistory',
+        select: 'title status category scheduledAt technician',
+        populate: { path: 'technician', select: 'profile' },
+      })
+    res.json(buildAuthResponse(hydrated))
   } catch (error) {
     console.error('Login error', error)
     res.status(500).json({ message: 'No se pudo iniciar sesión' })
@@ -59,6 +83,13 @@ exports.login = async (req, res) => {
 exports.profile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
+      .populate('clientProfile.favorites', 'profile technicianProfile.rating')
+      .populate({
+        path: 'serviceHistory',
+        select: 'title status category scheduledAt technician',
+        populate: { path: 'technician', select: 'profile' },
+      })
+      .populate('clientProfile.favorites', 'profile technicianProfile.rating')
     res.json({ user })
   } catch (error) {
     res.status(500).json({ message: 'No se pudo obtener el perfil' })

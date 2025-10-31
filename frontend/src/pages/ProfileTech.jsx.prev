@@ -12,11 +12,6 @@ import {
   Empty,
   Spin,
   Space,
-  Form,
-  InputNumber,
-  Input,
-  Modal,
-  message,
 } from 'antd'
 import {
   ScheduleOutlined,
@@ -38,10 +33,6 @@ const ProfileTech = () => {
 
   const [nearbyRequests, setNearbyRequests] = useState([])
   const [loadingNearby, setLoadingNearby] = useState(false)
-  const [offerModalOpen, setOfferModalOpen] = useState(false)
-  const [selectedRequest, setSelectedRequest] = useState(null)
-  const [submittingOffer, setSubmittingOffer] = useState(false)
-  const [offerForm] = Form.useForm()
 
   const fetchNearbyRequests = async () => {
     try {
@@ -65,42 +56,6 @@ const ProfileTech = () => {
     () => nearbyRequests.slice(0, 6),
     [nearbyRequests],
   )
-
-  const handleOpenOfferModal = (request) => {
-    setSelectedRequest(request)
-    offerForm.resetFields()
-    setOfferModalOpen(true)
-  }
-
-  const handleCloseOfferModal = () => {
-    setOfferModalOpen(false)
-    setSelectedRequest(null)
-    offerForm.resetFields()
-  }
-
-  const handleSubmitOffer = async () => {
-    try {
-      const values = await offerForm.validateFields()
-      if (!selectedRequest?.id) {
-        message.error('Selecciona una solicitud válida.')
-        return
-      }
-      setSubmittingOffer(true)
-      await api.post(`/service-request/${selectedRequest.id}/offers`, {
-        amount: values.amount,
-        message: values.message,
-      })
-      message.success('Oferta enviada al cliente')
-      fetchNearbyRequests()
-      handleCloseOfferModal()
-    } catch (error) {
-      if (error?.errorFields) return
-      console.error('submit offer error', error)
-      message.error('No se pudo enviar tu oferta, inténtalo más tarde')
-    } finally {
-      setSubmittingOffer(false)
-    }
-  }
 
   const availability = techProfile.availability && techProfile.availability.length
     ? techProfile.availability
@@ -134,20 +89,6 @@ const ProfileTech = () => {
       return 'Sin fecha definida'
     }
   }
-
-  const getDistanceHint = (relevance) => (
-    relevance?.includes('Coincide')
-      ? 'Esta solicitud está dentro de tus zonas declaradas.'
-      : 'La dirección parece fuera de tus zonas comunes; confirma con el cliente antes de avanzar.'
-  )
-
-  const getDistanceTag = (relevance) => (
-    relevance?.includes('Coincide') ? (
-      <Tag color="green">Cerca de tus zonas</Tag>
-    ) : (
-      <Tag color="volcano">Posible lejanía</Tag>
-    )
-  )
 
   return (
     <Flex vertical gap={24}>
@@ -209,12 +150,10 @@ const ProfileTech = () => {
                       <Paragraph style={{ marginBottom: 0 }} type="secondary">
                         {requestItem.description ?? 'El cliente no agregó detalles adicionales.'}
                       </Paragraph>
-                      <Text type="secondary">{getDistanceHint(requestItem.relevance)}</Text>
-                      <Button type="primary" onClick={() => handleOpenOfferModal(requestItem)}>
-                        Cotizar servicio
-                      </Button>
                     </Space>
-                    {getDistanceTag(requestItem.relevance)}
+                    <Tag color={requestItem.relevance?.includes('Coincide') ? 'green' : 'default'}>
+                      {requestItem.relevance ?? 'Coincidencia baja'}
+                    </Tag>
                   </Flex>
                 </List.Item>
               )}
@@ -305,42 +244,6 @@ const ProfileTech = () => {
           />
         </Card>
       )}
-
-      <Modal
-        title={selectedRequest ? `Oferta para ${selectedRequest.title ?? 'Solicitud sin título'}` : 'Enviar oferta'}
-        open={offerModalOpen}
-        okText="Enviar cotización"
-        cancelText="Cancelar"
-        confirmLoading={submittingOffer}
-        onOk={handleSubmitOffer}
-        onCancel={handleCloseOfferModal}
-      >
-        <Form layout="vertical" form={offerForm}>
-          <Form.Item
-            label="Monto estimado"
-            name="amount"
-            rules={[
-              { required: true, message: 'Indica el monto de tu servicio' },
-              { type: 'number', min: 1, message: 'El monto debe ser mayor a 0' },
-            ]}
-          >
-            <InputNumber style={{ width: '100%' }} prefix="$" min={1} precision={2} />
-          </Form.Item>
-          <Form.Item
-            label="Mensaje para el cliente"
-            name="message"
-            rules={[
-              { required: true, message: 'Comparte una breve descripción de tu propuesta' },
-              { min: 20, message: 'Agrega al menos 20 caracteres' },
-            ]}
-          >
-            <Input.TextArea
-              rows={4}
-              placeholder="Describe lo que incluye tu servicio, tiempos y condiciones."
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
     </Flex>
   )
 }

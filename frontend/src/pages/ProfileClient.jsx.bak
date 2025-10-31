@@ -13,9 +13,6 @@ import {
   Form,
   Input,
   message,
-  Tabs,
-  Space,
-  Spin,
 } from 'antd'
 import {
   CalendarOutlined,
@@ -23,7 +20,6 @@ import {
   HeartFilled,
   PlusOutlined,
   DeleteOutlined,
-  EnvironmentOutlined,
 } from '@ant-design/icons'
 import api from '../utils/api.js'
 import resolveAvatarUrl from '../utils/avatar.js'
@@ -46,94 +42,25 @@ const ProfileClient = () => {
   const [addresses, setAddresses] = useState(clientProfile.addresses ?? [])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [form] = Form.useForm()
-  const [requestsLoading, setRequestsLoading] = useState(false)
-  const [requestsByStatus, setRequestsByStatus] = useState({
-    pending: [],
-    quoted: [],
-    approved: [],
-    rejected: [],
-  })
-
 
   useEffect(() => {
     setAddresses(clientProfile.addresses ?? [])
   }, [clientProfile.addresses])
 
+  const history = Array.isArray(user?.serviceHistory) && user.serviceHistory.length
+    ? user.serviceHistory.map((request) => ({
+      id: request._id ?? request.id ?? request,
+      title: request.title ?? 'Servicio solicitado',
+      technician: request.technician?.profile?.fullName ?? 'Técnico por confirmar',
+      status: request.status ?? 'pendiente',
+      scheduledAt: request.scheduledAt
+        ? new Date(request.scheduledAt).toLocaleDateString()
+        : 'Sin fecha',
+    }))
+    : []
+
   const favorites = clientProfile.favorites ?? []
   const reputation = clientProfile.reputation ?? { average: 0, count: 0 }
-
-  useEffect(() => {
-    const fetchRequests = async () => {
-      if (!user?._id || user?.role !== 'client') return
-      setRequestsLoading(true)
-      try {
-        const { data } = await api.get('/service-request')
-        const requests = Array.isArray(data.requests) ? data.requests : []
-
-        const offersEntries = await Promise.all(
-          requests.map(async (request) => {
-            const requestId = request._id ?? request.id ?? request
-            if (!requestId) return [requestId, []]
-            try {
-              const { data: offersData } = await api.get(`/service-request/${requestId}/offers`)
-              return [requestId, offersData.offers ?? []]
-            } catch (error) {
-              console.error('client request offers error', error)
-              return [requestId, []]
-            }
-          }),
-        )
-
-        const offersMap = Object.fromEntries(
-          offersEntries.filter(([id]) => id),
-        )
-
-        const enriched = requests.map((request) => {
-          const id = request._id ?? request.id ?? request
-          const offers = offersMap[id] ?? []
-          return {
-            id,
-            title: request.title ?? 'Solicitud de servicio',
-            status: request.status ?? 'pending',
-            category: request.category ?? 'General',
-            address: request.address,
-            scheduledAt: request.scheduledAt,
-            createdAt: request.createdAt,
-            offersCount: offers.length,
-          }
-        })
-
-        const pending = enriched.filter((item) => item.status === 'pending' && item.offersCount === 0)
-        const quoted = enriched.filter((item) => item.status === 'pending' && item.offersCount > 0)
-        const approved = enriched.filter((item) => ['accepted', 'in_progress', 'completed'].includes(item.status))
-        const rejected = enriched.filter((item) => item.status === 'cancelled')
-
-        setRequestsByStatus({ pending, quoted, approved, rejected })
-      } catch (error) {
-        console.error('client requests fetch error', error)
-        message.error('No se pudieron obtener tus solicitudes')
-      } finally {
-        setRequestsLoading(false)
-      }
-    }
-
-    fetchRequests()
-  }, [user?._id, user?.role])
-
-  const statusLabels = {
-    pending: 'Pendiente',
-    accepted: 'Aprobada',
-    in_progress: 'En progreso',
-    completed: 'Completada',
-    cancelled: 'Rechazada',
-  }
-
-  const emptyMessages = {
-    pending: 'No tienes solicitudes pendientes',
-    quoted: 'No tienes solicitudes con cotizaciones',
-    approved: 'No tienes solicitudes aprobadas',
-    rejected: 'No tienes solicitudes rechazadas',
-  }
 
   const persistAddresses = async (nextAddresses, successMessage) => {
     try {
@@ -168,101 +95,6 @@ const ProfileClient = () => {
     await persistAddresses(nextAddresses, 'Dirección eliminada')
   }
 
-  const renderRequests = (items, tabKey) => {
-    if (requestsLoading) {
-      return (
-        <Flex align="center" justify="center" style={{ minHeight: 160 }}>
-          <Spin />
-        </Flex>
-      )
-    }
-
-    if (!items.length) {
-      return <Empty description={emptyMessages[tabKey]} />
-    }
-
-    return (
-      <List
-        dataSource={items}
-        renderItem={(item) => {
-          const statusLabel = statusLabels[item.status] ?? item.status
-          return (
-            <List.Item key={item.id}>
-              <List.Item.Meta
-                title={(
-                  <Flex justify="space-between" align="center">
-                    <Space align="center" size={8}>
-                      <Text strong>{item.title}</Text>
-                      <Tag color={statusColor[item.status] ?? 'default'}>{statusLabel}</Tag>
-                    </Space>
-                    <Text type="secondary">
-                      Creada: {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/D'}
-                    </Text>
-                  </Flex>
-                )}
-                description={(
-                  <Space direction="vertical" size={4}>
-                    <Text type="secondary">
-                      <CalendarOutlined style={{ marginRight: 4 }} />
-                      {item.scheduledAt ? new Date(item.scheduledAt).toLocaleDateString() : 'Fecha por definir'}
-                    </Text>
-                    <Text type="secondary">
-                      <EnvironmentOutlined style={{ marginRight: 4 }} />
-                      {item.address ?? 'Sin dirección registrada'}
-                    </Text>
-                    {tabKey === 'quoted' && (
-                      <Text type="secondary">
-                        Recibiste {item.offersCount} {item.offersCount === 1 ? 'cotización' : 'cotizaciones'}.
-                      </Text>
-                    )}
-                    {tabKey === 'pending' && (
-                      <Text type="secondary">
-                        Aún no recibes cotizaciones para esta solicitud.
-                      </Text>
-                    )}
-                    {tabKey === 'approved' && (
-                      <Text type="secondary">
-                        Tu solicitud cuenta con un técnico asignado o está en seguimiento.
-                      </Text>
-                    )}
-                    {tabKey === 'rejected' && (
-                      <Text type="secondary">
-                        Esta solicitud fue cancelada o rechazada.
-                      </Text>
-                    )}
-                  </Space>
-                )}
-              />
-            </List.Item>
-          )
-        }}
-      />
-    )
-  }
-
-  const tabsItems = [
-    {
-      key: 'pending',
-      label: `Pendientes (${requestsByStatus.pending.length})`,
-      children: renderRequests(requestsByStatus.pending, 'pending'),
-    },
-    {
-      key: 'quoted',
-      label: `Cotizadas (${requestsByStatus.quoted.length})`,
-      children: renderRequests(requestsByStatus.quoted, 'quoted'),
-    },
-    {
-      key: 'approved',
-      label: `Aprobadas (${requestsByStatus.approved.length})`,
-      children: renderRequests(requestsByStatus.approved, 'approved'),
-    },
-    {
-      key: 'rejected',
-      label: `Rechazadas (${requestsByStatus.rejected.length})`,
-      children: renderRequests(requestsByStatus.rejected, 'rejected'),
-    },
-  ]
-
   return (
     <Flex vertical gap={24}>
       <Card className="ff-surface">
@@ -284,8 +116,29 @@ const ProfileClient = () => {
         </Flex>
       </Card>
 
-      <Card title="Mis solicitudes" className="ff-surface">
-        <Tabs items={tabsItems} />
+      <Card title="Contrataciones" className="ff-surface">
+        {history.length === 0 ? (
+          <Empty description="Aún no tienes solicitudes registradas" />
+        ) : (
+          <List
+            itemLayout="horizontal"
+            dataSource={history}
+            renderItem={(item) => (
+              <List.Item>
+                <List.Item.Meta
+                  title={item.title}
+                  description={`Técnico: ${item.technician}`}
+                />
+                <Flex align="center" gap={16}>
+                  <Text type="secondary">Programado: {item.scheduledAt}</Text>
+                  <Tag color={statusColor[item.status] ?? 'blue'}>
+                    {item.status}
+                  </Tag>
+                </Flex>
+              </List.Item>
+            )}
+          />
+        )}
       </Card>
 
       <Card

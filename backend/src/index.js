@@ -27,6 +27,8 @@ app.use('/api/auth', require('./routes/authRoutes'))
 app.use('/api/users', require('./routes/userRoutes'))
 app.use('/api/technicians', require('./routes/techRoutes'))
 app.use('/api/service-request', require('./routes/serviceRequestRoutes'))
+app.use('/api/conversations', require('./routes/conversationRoutes'))
+app.use('/api/offers', require('./routes/offerRoutes'))
 app.use('/api/admin', require('./routes/adminRoutes'))
 
 app.use((req, res, next) => {

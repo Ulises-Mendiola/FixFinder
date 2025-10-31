@@ -10,6 +10,8 @@ import BecomeTechnician from './pages/BecomeTechnician.jsx'
 import SuperAdminPanel from './pages/SuperAdminPanel.jsx'
 import ServiceRequest from './pages/ServiceRequest.jsx'
 import Technicians from './pages/Technicians.jsx'
+import ChatCenter from './pages/ChatCenter.jsx'
+import Quotes from './pages/Quotes.jsx'
 import './App.css'
 
 const App = () => (
@@ -34,14 +36,7 @@ const App = () => (
           </ProtectedRoute>
         )}
       />
-      <Route
-        path="/become-technician"
-        element={(
-          <ProtectedRoute roles={['client', 'technician']}>
-            <BecomeTechnician />
-          </ProtectedRoute>
-        )}
-      />
+      <Route path="/become-technician" element={<BecomeTechnician />} />
       <Route
         path="/requests/new"
         element={(
@@ -51,6 +46,22 @@ const App = () => (
         )}
       />
       <Route path="/technicians" element={<Technicians />} />
+      <Route
+        path="/quotes"
+        element={(
+          <ProtectedRoute roles={['technician']}>
+            <Quotes />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/chats"
+        element={(
+          <ProtectedRoute roles={['client', 'technician', 'superadmin']}>
+            <ChatCenter />
+          </ProtectedRoute>
+        )}
+      />
       <Route
         path="/admin"
         element={(

@@ -1,0 +1,154 @@
+import {
+  Card,
+  Typography,
+  Flex,
+  Avatar,
+  Tag,
+  Rate,
+  List,
+  Button,
+  Image,
+} from 'antd'
+import { ScheduleOutlined, ToolOutlined, StarFilled } from '@ant-design/icons'
+import resolveAvatarUrl from '../utils/avatar.js'
+import useAuth from '../hooks/useAuth.js'
+
+const { Title, Text, Paragraph } = Typography
+
+const ProfileTech = () => {
+  const { user } = useAuth()
+  const techProfile = user?.technicianProfile ?? {}
+
+  const availability = techProfile.availability && techProfile.availability.length
+    ? techProfile.availability
+    : [
+      { day: 'Lunes', startHour: '09:00', endHour: '18:00' },
+      { day: 'Miércoles', startHour: '09:00', endHour: '18:00' },
+      { day: 'Sábado', startHour: '10:00', endHour: '14:00' },
+    ]
+
+  const portfolio = techProfile.portfolio && techProfile.portfolio.length
+    ? techProfile.portfolio
+    : [
+      {
+        title: 'Proyecto de ejemplo',
+        description: 'Aún no has agregado trabajos. Comparte tus mejores proyectos aquí.',
+        imageUrl: 'https://via.placeholder.com/240x140?text=Portfolio',
+      },
+    ]
+
+  const reviews = techProfile.reviews || []
+
+  return (
+    <Flex vertical gap={24}>
+      <Card className="ff-surface">
+        <Flex gap={24} align="center">
+          <Avatar size={96} src={resolveAvatarUrl(user?.profile?.avatar)} style={{ background: '#16a34a', fontSize: 32 }}>
+            {user?.profile?.fullName?.slice(0, 1) ?? 'T'}
+          </Avatar>
+          <div>
+            <Title level={3} style={{ marginBottom: 8 }}>
+              {user?.profile?.fullName ?? 'Técnico FixFinder'}
+            </Title>
+            <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+              {techProfile.bio ?? 'Comparte una descripción breve de tus servicios y experiencia.'}
+            </Paragraph>
+            <Flex gap={12} wrap="wrap">
+              {(techProfile.specialties ?? []).map((specialty) => (
+                <Tag icon={<ToolOutlined />} key={specialty}>{specialty}</Tag>
+              ))}
+              {(techProfile.skills ?? []).map((skill) => (
+                <Tag key={skill}>{skill}</Tag>
+              ))}
+            </Flex>
+          </div>
+        </Flex>
+      </Card>
+
+      <Flex gap={24} wrap="wrap">
+        <Card title="Calificación promedio" className="ff-surface" style={{ flex: 1, minWidth: 280 }}>
+          <Flex vertical align="center" gap={12}>
+            <Rate disabled allowHalf value={techProfile.rating?.average ?? 0} />
+            <Text type="secondary">
+              {techProfile.rating?.count ?? 0} reseñas verificadas
+            </Text>
+            <Button type="link">Gestionar reseñas</Button>
+          </Flex>
+        </Card>
+        <Card title="Disponibilidad" className="ff-surface" style={{ flex: 1, minWidth: 280 }}>
+          <List
+            dataSource={availability}
+            renderItem={({ day, startHour, endHour }) => (
+              <List.Item>
+                <Flex justify="space-between" style={{ width: '100%' }}>
+                  <Text strong>{day}</Text>
+                  <Text type="secondary">{startHour} - {endHour}</Text>
+                </Flex>
+              </List.Item>
+            )}
+          />
+          <Button type="primary" block icon={<ScheduleOutlined />} style={{ marginTop: 16 }}>
+            Actualizar agenda
+          </Button>
+        </Card>
+      </Flex>
+
+      <Card title="Portafolio de trabajos" className="ff-surface">
+        <List
+          itemLayout="vertical"
+          dataSource={portfolio}
+          renderItem={(item) => (
+            <List.Item key={item.title}>
+              <Flex gap={16}>
+                {item.imageUrl && (
+                  <Image
+                    src={item.imageUrl}
+                    alt={item.title}
+                    width={180}
+                    height={120}
+                    style={{ objectFit: 'cover', borderRadius: 12 }}
+                    fallback="https://via.placeholder.com/180x120?text=Sin+imagen"
+                  />
+                )}
+                <div>
+                  <Title level={4} style={{ marginBottom: 4 }}>{item.title}</Title>
+                  <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                    {item.description}
+                  </Paragraph>
+                </div>
+              </Flex>
+            </List.Item>
+          )}
+        />
+      </Card>
+
+      {reviews.length > 0 && (
+        <Card title="Reseñas recientes" className="ff-surface">
+          <List
+            dataSource={reviews}
+            renderItem={(review) => (
+              <List.Item key={review.serviceRequest}>
+                <Flex justify="space-between" align="center">
+                  <div>
+                    <Flex align="center" gap={8}>
+                      <StarFilled style={{ color: '#d0a76b' }} />
+                      <Text strong>{review.rating} / 5</Text>
+                    </Flex>
+                    <Paragraph style={{ marginTop: 8 }} type="secondary">
+                      {review.comment ?? 'Sin comentarios adicionales.'}
+                    </Paragraph>
+                  </div>
+                  <Text type="secondary">
+                    {new Date(review.createdAt).toLocaleDateString()}
+                  </Text>
+                </Flex>
+              </List.Item>
+            )}
+          />
+        </Card>
+      )}
+    </Flex>
+  )
+}
+
+export default ProfileTech
