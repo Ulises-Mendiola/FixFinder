@@ -3,7 +3,6 @@ import {
   Typography,
   Card,
   List,
-  Tag,
   Flex,
   Avatar,
   Rate,
@@ -13,9 +12,6 @@ import {
   Form,
   Input,
   message,
-  Tabs,
-  Space,
-  Spin,
 } from 'antd'
 import {
   CalendarOutlined,
@@ -23,37 +19,22 @@ import {
   HeartFilled,
   PlusOutlined,
   DeleteOutlined,
-  EnvironmentOutlined,
 } from '@ant-design/icons'
 import api from '../utils/api.js'
 import resolveAvatarUrl from '../utils/avatar.js'
 import useAuth from '../hooks/useAuth.js'
+import { useNavigate } from 'react-router-dom'
 
 const { Title, Text, Paragraph } = Typography
-
-const statusColor = {
-  completed: 'green',
-  in_progress: 'gold',
-  pending: 'orange',
-  accepted: 'blue',
-  cancelled: 'red',
-}
 
 const ProfileClient = () => {
   const { user, setAuthState } = useAuth()
   const clientProfile = user?.clientProfile ?? {}
+  const navigate = useNavigate()
 
   const [addresses, setAddresses] = useState(clientProfile.addresses ?? [])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [form] = Form.useForm()
-  const [requestsLoading, setRequestsLoading] = useState(false)
-  const [requestsByStatus, setRequestsByStatus] = useState({
-    pending: [],
-    quoted: [],
-    approved: [],
-    rejected: [],
-  })
-
 
   useEffect(() => {
     setAddresses(clientProfile.addresses ?? [])
@@ -61,79 +42,6 @@ const ProfileClient = () => {
 
   const favorites = clientProfile.favorites ?? []
   const reputation = clientProfile.reputation ?? { average: 0, count: 0 }
-
-  useEffect(() => {
-    const fetchRequests = async () => {
-      if (!user?._id || user?.role !== 'client') return
-      setRequestsLoading(true)
-      try {
-        const { data } = await api.get('/service-request')
-        const requests = Array.isArray(data.requests) ? data.requests : []
-
-        const offersEntries = await Promise.all(
-          requests.map(async (request) => {
-            const requestId = request._id ?? request.id ?? request
-            if (!requestId) return [requestId, []]
-            try {
-              const { data: offersData } = await api.get(`/service-request/${requestId}/offers`)
-              return [requestId, offersData.offers ?? []]
-            } catch (error) {
-              console.error('client request offers error', error)
-              return [requestId, []]
-            }
-          }),
-        )
-
-        const offersMap = Object.fromEntries(
-          offersEntries.filter(([id]) => id),
-        )
-
-        const enriched = requests.map((request) => {
-          const id = request._id ?? request.id ?? request
-          const offers = offersMap[id] ?? []
-          return {
-            id,
-            title: request.title ?? 'Solicitud de servicio',
-            status: request.status ?? 'pending',
-            category: request.category ?? 'General',
-            address: request.address,
-            scheduledAt: request.scheduledAt,
-            createdAt: request.createdAt,
-            offersCount: offers.length,
-          }
-        })
-
-        const pending = enriched.filter((item) => item.status === 'pending' && item.offersCount === 0)
-        const quoted = enriched.filter((item) => item.status === 'pending' && item.offersCount > 0)
-        const approved = enriched.filter((item) => ['accepted', 'in_progress', 'completed'].includes(item.status))
-        const rejected = enriched.filter((item) => item.status === 'cancelled')
-
-        setRequestsByStatus({ pending, quoted, approved, rejected })
-      } catch (error) {
-        console.error('client requests fetch error', error)
-        message.error('No se pudieron obtener tus solicitudes')
-      } finally {
-        setRequestsLoading(false)
-      }
-    }
-
-    fetchRequests()
-  }, [user?._id, user?.role])
-
-  const statusLabels = {
-    pending: 'Pendiente',
-    accepted: 'Aprobada',
-    in_progress: 'En progreso',
-    completed: 'Completada',
-    cancelled: 'Rechazada',
-  }
-
-  const emptyMessages = {
-    pending: 'No tienes solicitudes pendientes',
-    quoted: 'No tienes solicitudes con cotizaciones',
-    approved: 'No tienes solicitudes aprobadas',
-    rejected: 'No tienes solicitudes rechazadas',
-  }
 
   const persistAddresses = async (nextAddresses, successMessage) => {
     try {
@@ -159,115 +67,32 @@ const ProfileClient = () => {
     } catch (error) {
       if (error?.errorFields) {
         message.warning('Completa los campos requeridos')
+        return
       }
+      console.error('add address error', error)
+      message.error('No se pudo guardar la dirección')
     }
   }
 
   const handleRemoveAddress = async (index) => {
-    const nextAddresses = addresses.filter((_, idx) => idx !== index)
-    await persistAddresses(nextAddresses, 'Dirección eliminada')
-  }
-
-  const renderRequests = (items, tabKey) => {
-    if (requestsLoading) {
-      return (
-        <Flex align="center" justify="center" style={{ minHeight: 160 }}>
-          <Spin />
-        </Flex>
-      )
+    try {
+      const nextAddresses = addresses.filter((_, idx) => idx !== index)
+      await persistAddresses(nextAddresses, 'Dirección eliminada')
+    } catch (error) {
+      console.error('remove address error', error)
+      message.error('No se pudo eliminar la dirección')
     }
-
-    if (!items.length) {
-      return <Empty description={emptyMessages[tabKey]} />
-    }
-
-    return (
-      <List
-        dataSource={items}
-        renderItem={(item) => {
-          const statusLabel = statusLabels[item.status] ?? item.status
-          return (
-            <List.Item key={item.id}>
-              <List.Item.Meta
-                title={(
-                  <Flex justify="space-between" align="center">
-                    <Space align="center" size={8}>
-                      <Text strong>{item.title}</Text>
-                      <Tag color={statusColor[item.status] ?? 'default'}>{statusLabel}</Tag>
-                    </Space>
-                    <Text type="secondary">
-                      Creada: {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/D'}
-                    </Text>
-                  </Flex>
-                )}
-                description={(
-                  <Space direction="vertical" size={4}>
-                    <Text type="secondary">
-                      <CalendarOutlined style={{ marginRight: 4 }} />
-                      {item.scheduledAt ? new Date(item.scheduledAt).toLocaleDateString() : 'Fecha por definir'}
-                    </Text>
-                    <Text type="secondary">
-                      <EnvironmentOutlined style={{ marginRight: 4 }} />
-                      {item.address ?? 'Sin dirección registrada'}
-                    </Text>
-                    {tabKey === 'quoted' && (
-                      <Text type="secondary">
-                        Recibiste {item.offersCount} {item.offersCount === 1 ? 'cotización' : 'cotizaciones'}.
-                      </Text>
-                    )}
-                    {tabKey === 'pending' && (
-                      <Text type="secondary">
-                        Aún no recibes cotizaciones para esta solicitud.
-                      </Text>
-                    )}
-                    {tabKey === 'approved' && (
-                      <Text type="secondary">
-                        Tu solicitud cuenta con un técnico asignado o está en seguimiento.
-                      </Text>
-                    )}
-                    {tabKey === 'rejected' && (
-                      <Text type="secondary">
-                        Esta solicitud fue cancelada o rechazada.
-                      </Text>
-                    )}
-                  </Space>
-                )}
-              />
-            </List.Item>
-          )
-        }}
-      />
-    )
   }
-
-  const tabsItems = [
-    {
-      key: 'pending',
-      label: `Pendientes (${requestsByStatus.pending.length})`,
-      children: renderRequests(requestsByStatus.pending, 'pending'),
-    },
-    {
-      key: 'quoted',
-      label: `Cotizadas (${requestsByStatus.quoted.length})`,
-      children: renderRequests(requestsByStatus.quoted, 'quoted'),
-    },
-    {
-      key: 'approved',
-      label: `Aprobadas (${requestsByStatus.approved.length})`,
-      children: renderRequests(requestsByStatus.approved, 'approved'),
-    },
-    {
-      key: 'rejected',
-      label: `Rechazadas (${requestsByStatus.rejected.length})`,
-      children: renderRequests(requestsByStatus.rejected, 'rejected'),
-    },
-  ]
 
   return (
     <Flex vertical gap={24}>
       <Card className="ff-surface">
         <Flex gap={24} align="center" wrap="wrap">
-          <Avatar size={96} src={resolveAvatarUrl(user?.profile?.avatar)} style={{ background: '#1677ff', fontSize: 32 }}>
+          <Avatar
+            size={96}
+            src={resolveAvatarUrl(user?.profile?.avatar)}
+            style={{ background: '#1677ff', fontSize: 32 }}
+          >
             {user?.profile?.fullName?.slice(0, 1) ?? 'C'}
           </Avatar>
           <div style={{ minWidth: 280 }}>
@@ -275,17 +100,17 @@ const ProfileClient = () => {
               {user?.profile?.fullName ?? 'Cliente FixFinder'}
             </Title>
             <Flex gap={16} style={{ color: '#64748b', flexWrap: 'wrap' }}>
-              <span><CalendarOutlined /> Miembro desde {new Date(user?.createdAt ?? Date.now()).getFullYear()}</span>
-              <span><StarFilled style={{ color: '#d0a76b' }} /> Ranking como cliente:</span>
+              <span>
+                <CalendarOutlined /> Miembro desde {new Date(user?.createdAt ?? Date.now()).getFullYear()}
+              </span>
+              <span>
+                <StarFilled style={{ color: '#d0a76b' }} /> Ranking como cliente:
+              </span>
               <Rate disabled value={reputation.average} />
               <Text type="secondary">({reputation.count} calificaciones)</Text>
             </Flex>
           </div>
         </Flex>
-      </Card>
-
-      <Card title="Mis solicitudes" className="ff-surface">
-        <Tabs items={tabsItems} />
       </Card>
 
       <Card
@@ -304,16 +129,17 @@ const ProfileClient = () => {
             dataSource={addresses}
             renderItem={(address, index) => (
               <List.Item
-                actions={[(
+                actions={[
                   <Button
+                    key="delete"
                     danger
                     type="text"
                     icon={<DeleteOutlined />}
                     onClick={() => handleRemoveAddress(index)}
                   >
                     Eliminar
-                  </Button>
-                )]}
+                  </Button>,
+                ]}
               >
                 <List.Item.Meta
                   title={address.label ?? 'Dirección'}
@@ -323,7 +149,8 @@ const ProfileClient = () => {
                         .filter(Boolean)
                         .join(', ')}
                       <br />
-                      {address.country ?? 'México'} {address.reference ? `· Referencia: ${address.reference}` : ''}
+                      {address.country ?? 'México'}
+                      {address.reference ? ` · Referencia: ${address.reference}` : ''}
                     </Paragraph>
                   )}
                 />
@@ -332,7 +159,7 @@ const ProfileClient = () => {
           />
         )}
         <Paragraph type="secondary" style={{ marginTop: 16 }}>
-          Estas direcciones solo son visibles para ti y para el técnico asignado mientras el servicio está activo.
+          Estas direcciones solo son visibles para ti y para el técnico asignado mientras el servicio esté activo.
         </Paragraph>
       </Card>
 
@@ -346,7 +173,10 @@ const ProfileClient = () => {
               <List.Item>
                 <Flex justify="space-between" align="center" style={{ width: '100%' }}>
                   <Flex gap={12} align="center">
-                    <Avatar src={resolveAvatarUrl(tech.profile?.avatar)} icon={<HeartFilled style={{ color: '#d0a76b' }} />} />
+                    <Avatar
+                      src={resolveAvatarUrl(tech.profile?.avatar)}
+                      icon={<HeartFilled style={{ color: '#d0a76b' }} />}
+                    />
                     <div>
                       <Text strong>{tech.profile?.fullName}</Text>
                       <Paragraph style={{ margin: 0 }} type="secondary">
