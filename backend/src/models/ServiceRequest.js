@@ -19,6 +19,7 @@ const serviceRequestSchema = new mongoose.Schema({
     enum: ['pending', 'accepted', 'in_progress', 'completed', 'cancelled'],
     default: 'pending',
   },
+  categoryDetails: { type: mongoose.Schema.Types.Mixed, default: {} },
   scheduledAt: { type: Date, required: true },
   contactName: { type: String, required: true },
   contactPhone: { type: String },

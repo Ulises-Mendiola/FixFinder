@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Card,
   Form,
@@ -15,9 +15,11 @@ import {
   Spin,
   Flex,
   Space,
+  InputNumber,
+  Switch,
+  Tooltip,
 } from 'antd'
 import dayjs from 'dayjs'
-import { useNavigate } from 'react-router-dom'
 import api from '../utils/api.js'
 import useAuth from '../hooks/useAuth.js'
 
@@ -30,6 +32,144 @@ const categories = [
   'Alba\u00f1iler\u00eda',
   'Pintura',
 ]
+
+const categoryFieldConfig = {
+  'Plomer\u00eda': [
+    {
+      name: 'plumbingProblemType',
+      label: 'Tipo de problema',
+      type: 'select',
+      options: [
+        { label: 'Fuga de agua', value: 'fuga' },
+        { label: 'Baja presi\u00f3n', value: 'presion' },
+        { label: 'Tuber\u00eda obstruida', value: 'obstruccion' },
+        { label: 'Instalaci\u00f3n', value: 'instalacion' },
+        { label: 'Otro', value: 'otro' },
+      ],
+      rules: [{ required: true, message: 'Selecciona el tipo de problema' }],
+    },
+    {
+      name: 'plumbingLocation',
+      label: 'Ubicaci\u00f3n del problema',
+      placeholder: 'Cocina, ba\u00f1o principal, jard\u00edn, etc.',
+      type: 'text',
+      rules: [{ required: true, message: 'Describe d\u00f3nde ocurre el problema' }],
+    },
+    {
+      name: 'plumbingHasShutoff',
+      label: '\u00bfPodemos cerrar la llave de paso?',
+      type: 'switch',
+      tooltip: 'Indica si puedes cerrar el suministro de agua cuando llegue el t\u00e9cnico.',
+    },
+  ],
+  Electricidad: [
+    {
+      name: 'electricalIssueType',
+      label: 'Tipo de instalaci\u00f3n/falla',
+      type: 'select',
+      options: [
+        { label: 'Cortocircuito', value: 'short' },
+        { label: 'Apagadores y contactos', value: 'switches' },
+        { label: 'Centro de carga', value: 'panel' },
+        { label: 'Alumbrado', value: 'lighting' },
+        { label: 'Otro', value: 'other' },
+      ],
+      rules: [{ required: true, message: 'Selecciona el tipo de trabajo el\u00e9ctrico' }],
+    },
+    {
+      name: 'electricalCircuits',
+      label: 'N\u00famero de circuitos afectados',
+      type: 'number',
+      min: 0,
+      tooltip: 'Si no est\u00e1s seguro, puedes dejarlo en 0.',
+    },
+    {
+      name: 'electricalHasPower',
+      label: '\u00bfHay energ\u00eda el\u00e9ctrica en la zona?',
+      type: 'switch',
+    },
+  ],
+  'Carpinter\u00eda': [
+    {
+      name: 'carpentryPieceType',
+      label: 'Tipo de mueble o estructura',
+      type: 'text',
+      placeholder: 'Closet, puerta, gabinete, repisa\u2026',
+      rules: [{ required: true, message: 'Describe la pieza a trabajar' }],
+    },
+    {
+      name: 'carpentryMaterial',
+      label: 'Material principal',
+      type: 'select',
+      options: [
+        { label: 'Madera s\u00f3lida', value: 'solid' },
+        { label: 'MDF/aglomerado', value: 'mdf' },
+        { label: 'Melamina', value: 'melamine' },
+        { label: 'Otro', value: 'other' },
+      ],
+      rules: [{ required: true, message: 'Selecciona el material principal' }],
+    },
+    {
+      name: 'carpentryFinishNeeded',
+      label: '\u00bfRequiere acabado o barniz?',
+      type: 'switch',
+    },
+  ],
+  'Alba\u00f1iler\u00eda': [
+    {
+      name: 'masonryWorkType',
+      label: 'Tipo de trabajo',
+      type: 'select',
+      options: [
+        { label: 'Reparaci\u00f3n de muro', value: 'wall_repair' },
+        { label: 'Piso o loseta', value: 'flooring' },
+        { label: 'Impermeabilizaci\u00f3n', value: 'waterproof' },
+        { label: 'Construcci\u00f3n ligera', value: 'light_construction' },
+        { label: 'Otro', value: 'other' },
+      ],
+      rules: [{ required: true, message: 'Selecciona el tipo de trabajo a realizar' }],
+    },
+    {
+      name: 'masonrySurfaceSize',
+      label: '\u00c1rea aproximada (m\u00b2)',
+      type: 'number',
+      min: 1,
+      tooltip: 'Indica la superficie de trabajo aproximada.',
+      rules: [{ required: true, message: 'Indica el \u00e1rea aproximada' }],
+    },
+    {
+      name: 'masonryNeedsMaterial',
+      label: '\u00bfNecesitas que el t\u00e9cnico proporcione materiales?',
+      type: 'switch',
+    },
+  ],
+  Pintura: [
+    {
+      name: 'paintingAreaType',
+      label: '\u00c1rea a pintar',
+      type: 'select',
+      options: [
+        { label: 'Interior', value: 'interior' },
+        { label: 'Exterior', value: 'exterior' },
+        { label: 'Muebles/objetos', value: 'objects' },
+      ],
+      rules: [{ required: true, message: 'Selecciona el tipo de superficie a pintar' }],
+    },
+    {
+      name: 'paintingSurfaceSize',
+      label: 'Superficie aproximada (m\u00b2)',
+      type: 'number',
+      min: 1,
+      tooltip: 'Una estimaci\u00f3n ayuda a cotizar con mayor precisi\u00f3n.',
+      rules: [{ required: true, message: 'Indica la superficie a pintar' }],
+    },
+    {
+      name: 'paintingHasPaint',
+      label: '\u00bfYa cuentas con la pintura?',
+      type: 'switch',
+    },
+  ],
+}
 
 const statusColor = {
   pending: 'orange',
@@ -69,7 +209,6 @@ const ServiceRequest = () => {
   const [form] = Form.useForm()
   const { user } = useAuth()
   const savedAddresses = user?.clientProfile?.addresses ?? []
-  const navigate = useNavigate()
   const [selectedSavedAddress, setSelectedSavedAddress] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [requestsByStatus, setRequestsByStatus] = useState({
@@ -79,6 +218,12 @@ const ServiceRequest = () => {
   })
   const [requestsLoading, setRequestsLoading] = useState(false)
   const [offerActionLoading, setOfferActionLoading] = useState(null)
+  const [activeCategory, setActiveCategory] = useState(null)
+  const [activeTabKey, setActiveTabKey] = useState('create')
+  const currentCategoryFields = useMemo(
+    () => categoryFieldConfig[activeCategory] ?? [],
+    [activeCategory],
+  )
 
   const userId = user?._id
   const userRole = user?.role
@@ -175,21 +320,54 @@ const ServiceRequest = () => {
     }
   }
 
+  const handleCategoryChange = (value) => {
+    if (activeCategory && activeCategory !== value) {
+      const prevFieldNames = (categoryFieldConfig[activeCategory] ?? []).map((field) => field.name)
+      if (prevFieldNames.length) {
+        form.resetFields(prevFieldNames)
+      }
+    }
+    if (!value) {
+      setActiveCategory(null)
+      return
+    }
+    setActiveCategory(value)
+  }
+
   const handleSubmit = async (values) => {
     try {
       const { savedAddress: _savedAddress, scheduledAt, ...rest } = values
       setSubmitting(true)
+      const categoryFieldNames = new Set(
+        (categoryFieldConfig[values.category] ?? []).map((field) => field.name),
+      )
+
+      const baseValues = {}
+      const categoryDetails = {}
+
+      Object.entries(rest).forEach(([key, value]) => {
+        if (categoryFieldNames.has(key)) {
+          if (value !== undefined && value !== null && value !== '') {
+            categoryDetails[key] = value
+          }
+        } else {
+          baseValues[key] = value
+        }
+      })
+
       const payload = {
-        ...rest,
+        ...baseValues,
         scheduledAt: scheduledAt?.toISOString(),
         ...(selectedSavedAddress ? { addressDetails: selectedSavedAddress } : {}),
+        ...(Object.keys(categoryDetails).length ? { categoryDetails } : {}),
       }
       await api.post('/service-request', payload)
       message.success('Solicitud enviada correctamente')
       form.resetFields()
       setSelectedSavedAddress(null)
+      setActiveCategory(null)
       await loadRequests()
-      navigate('/profile/client')
+      setActiveTabKey('pending')
     } catch (error) {
       console.error('service request error', error)
       message.error('No se pudo crear la solicitud, intenta m\u00e1s tarde')
@@ -228,6 +406,92 @@ const ServiceRequest = () => {
     } finally {
       setOfferActionLoading(null)
     }
+  }
+
+  const renderCategoryField = (field) => {
+    const labelContent = field.tooltip ? (
+      <Tooltip title={field.tooltip}>
+        <span>{field.label}</span>
+      </Tooltip>
+    ) : field.label
+
+    const commonRules = field.rules ?? []
+
+    if (field.type === 'switch') {
+      return (
+        <Form.Item
+          key={field.name}
+          label={labelContent}
+          name={field.name}
+          valuePropName="checked"
+        >
+          <Switch />
+        </Form.Item>
+      )
+    }
+
+    if (field.type === 'number') {
+      return (
+        <Form.Item
+          key={field.name}
+          label={labelContent}
+          name={field.name}
+          rules={commonRules}
+        >
+          <InputNumber
+            min={field.min}
+            max={field.max}
+            style={{ width: '100%' }}
+            placeholder={field.placeholder}
+          />
+        </Form.Item>
+      )
+    }
+
+    if (field.type === 'select') {
+      return (
+        <Form.Item
+          key={field.name}
+          label={labelContent}
+          name={field.name}
+          rules={commonRules}
+        >
+          <Select
+            placeholder={field.placeholder ?? 'Selecciona una opci\u00f3n'}
+            options={field.options}
+            allowClear
+          />
+        </Form.Item>
+      )
+    }
+
+    if (field.type === 'textarea') {
+      return (
+        <Form.Item
+          key={field.name}
+          label={labelContent}
+          name={field.name}
+          rules={commonRules}
+        >
+          <Input.TextArea
+            rows={field.rows ?? 3}
+            placeholder={field.placeholder}
+          />
+        </Form.Item>
+      )
+    }
+
+    // default to text input
+    return (
+      <Form.Item
+        key={field.name}
+        label={labelContent}
+        name={field.name}
+        rules={commonRules}
+      >
+        <Input placeholder={field.placeholder} />
+      </Form.Item>
+    )
   }
 
   const renderRequestsList = (items, emptyDescription) => {
@@ -343,6 +607,16 @@ const ServiceRequest = () => {
                               ) : (
                                 <Text type="secondary">Sin mensaje adicional.</Text>
                               )}
+                              {offer.technician?.profile?.phoneNumber && (
+                                <Text type="secondary">
+                                  Tel\u00e9fono: {offer.technician.profile.phoneNumber}
+                                </Text>
+                              )}
+                              {offer.technician?.profile?.email && (
+                                <Text type="secondary">
+                                  Correo: {offer.technician.profile.email}
+                                </Text>
+                              )}
                             </Space>
                             <Space direction="vertical" align="end" size={8} style={{ minWidth: 180 }}>
                               <Text strong style={{ fontSize: 18 }}>
@@ -414,8 +688,20 @@ const ServiceRequest = () => {
               name="category"
               rules={[{ required: true, message: 'Selecciona una categor\u00eda' }]}
             >
-              <Select placeholder="Selecciona" options={categories.map((value) => ({ value, label: value }))} />
+              <Select
+                placeholder="Selecciona"
+                options={categories.map((value) => ({ value, label: value }))}
+                onChange={handleCategoryChange}
+              />
             </Form.Item>
+            {currentCategoryFields.length > 0 && (
+              <>
+                <Text strong style={{ display: 'block' }}>
+                  Detalles espec\u00edficos para {activeCategory?.toLowerCase?.() ?? ''}
+                </Text>
+                {currentCategoryFields.map((field) => renderCategoryField(field))}
+              </>
+            )}
             {savedAddresses.length > 0 && (
               <Form.Item label="Direcci\u00f3n guardada" name="savedAddress">
                 <Select
@@ -494,10 +780,7 @@ const ServiceRequest = () => {
     {
       key: 'quoted',
       label: 'Cotizadas',
-      children: renderRequestsList(
-        requestsByStatus.quoted,
-        'Aqu\u00ed ver\u00e1s tus solicitudes con cotizaciones disponibles.',
-      ),
+      children: renderQuotedRequests(),
     },
     {
       key: 'accepted',
@@ -511,7 +794,11 @@ const ServiceRequest = () => {
 
   return (
     <Card>
-      <Tabs defaultActiveKey="create" items={tabsItems} />
+      <Tabs
+        activeKey={activeTabKey}
+        onChange={setActiveTabKey}
+        items={tabsItems}
+      />
     </Card>
   )
 }
